@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diamond Price Regressions</title>
+<style>
+:root{
+  color-scheme:light;
+  --page:#f4f6f9; --surface:#ffffff; --ink:#222222; --ink2:#4a4a4a; --muted:#7c7670;
+  --grid:#e3e6ea; --axis:#c4c9d0; --border:rgba(0,53,107,.12); --hover:rgba(0,53,107,.05);
+  --point:rgba(74,74,74,.08); --sel:#e8eff8; --accent:#00356b; --on-accent:#ffffff;
+  --band:#00356b; --band-ink:#ffffff; --band-ink2:rgba(255,255,255,.75);
+  --warn-bg:#fdf1e7; --warn-ink:#7a3410;
+  --s1:#286dc0; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#6250d6;
+  --off:#c4c9d0;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --page:#0b1018; --surface:#141a24; --ink:#f0f2f5; --ink2:#c4cad3; --muted:#8a93a0;
+    --grid:#232d3b; --axis:#34404f; --border:rgba(255,255,255,.10); --hover:rgba(255,255,255,.05);
+    --point:rgba(200,204,210,.09); --sel:#182a44; --accent:#63aaff; --on-accent:#0b1018;
+    --band:#00356b; --band-ink:#ffffff; --band-ink2:rgba(255,255,255,.75);
+    --warn-bg:#2e2114; --warn-ink:#f2c49c;
+    --s1:#4a8fe0; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+    --off:#3a4655;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --page:#0b1018; --surface:#141a24; --ink:#f0f2f5; --ink2:#c4cad3; --muted:#8a93a0;
+  --grid:#232d3b; --axis:#34404f; --border:rgba(255,255,255,.10); --hover:rgba(255,255,255,.05);
+  --point:rgba(200,204,210,.09); --sel:#182a44; --accent:#63aaff; --on-accent:#0b1018;
+  --band:#00356b; --band-ink:#ffffff; --band-ink2:rgba(255,255,255,.75);
+  --warn-bg:#2e2114; --warn-ink:#f2c49c;
+  --s1:#4a8fe0; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#9085e9;
+  --off:#3a4655;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+button,select{font:inherit;color:inherit}
+header{background:var(--band);color:var(--band-ink);margin-bottom:16px;padding:18px 24px 16px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+h1{font-size:20px;margin:0;font-weight:650;letter-spacing:-.01em}
+header p{margin:2px 0 0;color:var(--band-ink2);font-size:13px}
+header .ctl>span{color:var(--band-ink2)}
+header .seg{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.25)}
+header .seg button{color:var(--band-ink2)}
+header .seg button[aria-pressed="true"]{background:#ffffff;color:#00356b}
+header select{background:#ffffff;color:#00356b;border-color:transparent}
+.swap{background:rgba(255,255,255,.12);color:#ffffff;border:1px solid rgba(255,255,255,.3);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:15px;line-height:1.2}
+.swap:hover{background:rgba(255,255,255,.22)}
+.swap:focus-visible{outline:2px solid #ffffff;outline-offset:2px}
+.brand{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--band-ink2);font-weight:600;margin-bottom:2px}
+.controls{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center}
+.ctl{display:flex;flex-direction:column;gap:4px}
+.ctl>span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;padding:2px;background:var(--surface)}
+.seg button{border:0;background:none;padding:5px 11px;border-radius:6px;cursor:pointer;color:var(--ink2);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.seg button small{opacity:.7;font-variant-numeric:tabular-nums}
+select{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 8px}
+main{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;padding:0 24px 32px;align-items:start}
+@media (max-width:900px){main{grid-template-columns:1fr;padding:0 16px 24px}header{padding:16px}}
+header .seg button:focus-visible,header select:focus-visible{outline-color:#ffffff}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px}
+aside.card{padding:14px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+@media (max-width:900px){aside.card{position:static;max-height:none}}
+.editing{display:flex;align-items:center;gap:8px;font-weight:600;margin:0 0 4px}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;flex:none}
+.hint{color:var(--muted);font-size:12px;margin:0 0 10px}
+.group{border:1px solid var(--border);border-radius:10px;padding:8px 10px;margin-top:10px}
+.ghead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+.ghead h3{font-size:12px;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--accent)}
+.ghead .gsub{font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0}
+.row label{display:flex;flex-direction:column;cursor:pointer}
+.row .sub{font-size:11px;color:var(--muted)}
+.row.base{opacity:.55}
+.tag{font-size:10px;text-transform:uppercase;letter-spacing:.06em;border:1px solid var(--border);border-radius:4px;padding:0 5px;color:var(--muted)}
+.switch{position:relative;width:34px;height:20px;border-radius:10px;border:0;background:var(--off);cursor:pointer;flex:none;padding:0;transition:background .15s}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch[aria-checked="true"]{background:var(--accent)}
+.switch[aria-checked="mixed"]{background:color-mix(in srgb,var(--accent) 45%,var(--off))}
+.switch[aria-checked="true"]::after{transform:translateX(14px)}
+.switch[aria-checked="mixed"]::after{transform:translateX(7px)}
+.switch:disabled{cursor:not-allowed;opacity:.5}
+.switch:focus-visible,.seg button:focus-visible,select:focus-visible,.colbtn:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.basesel{font-size:12px;padding:2px 6px}
+.notice{background:var(--warn-bg);color:var(--warn-ink);border-radius:8px;padding:8px 10px;font-size:12.5px;margin:0 0 4px}
+.notice:empty{display:none}
+.btn{border:1px solid var(--border);background:var(--surface);border-radius:8px;padding:6px 12px;cursor:pointer}
+.btn:hover{background:var(--hover)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.content{display:flex;flex-direction:column;gap:16px;min-width:0}
+.plotcard{padding:14px 14px 10px}
+.plothead{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;margin-bottom:6px}
+.plothead h2,.tablecard h2{font-size:14px;margin:0;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--ink2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:16px;height:2px;border-radius:1px}
+.panels{display:grid;gap:12px}
+.panels.multi{grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+.panel{position:relative}
+.panel h4{margin:0 0 2px;font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:6px}
+.panel canvas{display:block;width:100%}
+.panel canvas.ov{position:absolute;left:0;bottom:0;cursor:crosshair}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.12);white-space:nowrap;display:none;z-index:2;font-variant-numeric:tabular-nums}
+.tip div{display:flex;align-items:center;gap:6px}
+.caption{font-size:12px;color:var(--muted);margin:6px 2px 0}
+.tablecard{padding:14px}
+.tablebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}
+.tablebar .acts{display:flex;gap:8px}
+.tablewrap{overflow-x:auto}
+table.reg{border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px;min-width:340px}
+table.reg th,table.reg td{padding:1px 14px;text-align:right;white-space:nowrap}
+table.reg th:first-child,table.reg td:first-child{text-align:left;padding-left:2px}
+table.reg thead tr.num th{padding-top:2px;padding-bottom:0}
+table.reg thead tr.dv th{border-bottom:1.5px solid var(--ink);font-weight:400;padding-bottom:3px}
+table.reg tbody.coef tr.se td{color:var(--ink2)}
+table.reg tbody.coef tr.ts td{color:var(--ink2);font-style:italic}
+table.reg tbody.coef tr:first-child td{padding-top:5px}
+table.reg tbody.coef tr:last-child td{padding-bottom:5px}
+table.reg tbody.stats tr:first-child td{border-top:1.5px solid var(--ink);padding-top:4px}
+table.reg tbody.stats tr:last-child td{border-bottom:1.5px solid var(--ink);padding-bottom:4px}
+table.reg .sel{background:var(--sel)}
+.colbtn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;cursor:pointer;padding:3px 4px;border-radius:6px;font-weight:600}
+.colbtn:hover{background:var(--hover)}
+.colx{border:0;background:none;cursor:pointer;color:var(--muted);padding:0 2px;font-size:14px;line-height:1}
+.colx:hover{color:var(--ink)}
+.tnote{font-size:13px;color:var(--ink);margin:8px 2px 0;max-width:760px}
+.flags{font-size:12.5px;color:var(--ink2);margin:10px 2px 0;padding-left:18px}
+.flags:empty{display:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="brand">Yale School of Management · MGT 407E</div>
+    <h1>Diamond Price Regressions</h1>
+    <p>OLS of price (USD) on the variables you switch on. Each column in the table is one regression.</p>
+  </div>
+  <div class="controls">
+    <div class="ctl"><span>Dataset</span>
+      <div class="seg" id="dsSeg">
+        <button data-ds="cleaned">Cleaned v12 <small>52,893</small></button>
+        <button data-ds="original">Original <small>53,940</small></button>
+      </div>
+    </div>
+    <div class="ctl"><span>Plots</span>
+      <div class="seg" id="modeSeg">
+        <button data-mode="overlay">Same plot</button>
+        <button data-mode="separate">Separate plots</button>
+      </div>
+    </div>
+    <div class="ctl"><span>Vertical axis (y)</span>
+      <select id="yaxis"></select>
+    </div>
+    <div class="ctl"><span>&nbsp;</span>
+      <button class="swap" id="swapBtn" aria-label="Swap axes" title="Swap axes">⇄</button>
+    </div>
+    <div class="ctl"><span>Horizontal axis (x)</span>
+      <select id="xaxis"></select>
+    </div>
+  </div>
+</header>
+<main>
+  <aside class="card" aria-label="Variables">
+    <div class="editing" id="editing"></div>
+    <p class="hint">Switches change the selected column. Click a column header in the table to edit that regression.</p>
+    <div class="notice" id="notice" role="status" aria-live="polite"></div>
+    <div id="vars"></div>
+  </aside>
+  <div class="content">
+    <section class="card plotcard">
+      <div class="plothead"><h2 id="plotTitle"></h2><div class="legend" id="legend"></div></div>
+      <div class="panels" id="panels"></div>
+      <p class="caption" id="caption"></p>
+    </section>
+    <section class="card tablecard">
+      <div class="tablebar">
+        <h2>Regression table</h2>
+        <div class="acts">
+          <button class="btn" id="copyBtn">Copy table</button>
+          <button class="btn primary" id="addBtn">Add regression</button>
+        </div>
+      </div>
+      <div class="tablewrap"><table class="reg" id="regTable"></table></div>
+      <p class="tnote" id="tnote"></p>
+      <ul class="flags" id="flags"></ul>
+    </section>
+  </div>
+</main>
+<script>/*DATA*/</script>
+<script>
+const D = window.DIAMONDS, CATS = D.cats;
+const CAT_KEYS = ['cut','color','clarity'];
+const CAT_LABEL = {cut:'Cut', color:'Color', clarity:'Clarity'};
+const CAT_ORDER_NOTE = {cut:'worst → best', color:'worst → best', clarity:'worst → best'};
+const NUMS = [
+  {id:'carat', label:'Carat', sub:'carats'},
+  {id:'table', label:'Table', sub:'% of avg. girdle diameter'},
+  {id:'depth', label:'Depth', sub:null},
+];
+const DIMS = [
+  {id:'x', label:'x', sub:'length, mm'},
+  {id:'y', label:'y', sub:'width, mm'},
+  {id:'z', label:'z', sub:'depth/height, mm'},
+];
+const DIM_IDS = ['x','y','z'];
+const SERIES = ['--s1','--s2','--s3','--s4','--s5','--s6'];
+const MAXCOLS = 6;
+const DS_LABEL = {cleaned:'Cleaned', original:'Original'};
+
+const state = {ds:'cleaned', mode:'overlay', xaxis:'carat', yaxis:'price', cols:[], sel:0, notice:''};
+let nextColor = 0;
+function newSpec(from){
+  const s = {terms:new Set(from ? from.terms : []), base:from ? {...from.base} : {cut:0, color:0, clarity:0}, color:nextColor};
+  nextColor = (nextColor + 1) % SERIES.length;
+  return s;
+}
+state.cols.push(newSpec());
+
+const colFor = (id, ds) => id === 'depth' ? (ds === 'cleaned' ? 'calculated_depth' : 'depth') : id;
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = (v, d=2) => v.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtInt = v => v.toLocaleString('en-US');
+
+function rowLabel(key){
+  if (key.includes(':')){ const [c, l] = key.split(':'); return `${CAT_LABEL[c]}: ${CATS[c][+l]}`; }
+  return {carat:'Carat', table:'Table', calculated_depth:'Depth (calculated)', depth:'Depth (stored)', x:'x (mm)', y:'y (mm)', z:'z (mm)'}[key];
+}
+// Fixed row order for the table; dummies follow the worst-to-best level order.
+function canonicalKeys(ds){
+  const keys = ['carat','table', colFor('depth', ds), 'x','y','z'];
+  for (const c of CAT_KEYS) CATS[c].forEach((_, l) => keys.push(`${c}:${l}`));
+  return keys;
+}
+function termIds(spec){
+  const order = ['carat','table','depth','x','y','z'];
+  for (const c of CAT_KEYS) CATS[c].forEach((_, l) => order.push(`${c}:${l}`));
+  return order.filter(t => spec.terms.has(t));
+}
+
+// ---------- OLS ----------
+const cache = new Map();
+function invert(A, k){
+  const w = 2*k, M = new Float64Array(k*w);
+  for (let i=0;i<k;i++){ for (let j=0;j<k;j++) M[i*w+j] = A[i*k+j]; M[i*w+k+i] = 1; }
+  for (let c=0;c<k;c++){
+    let p = c, best = Math.abs(M[c*w+c]);
+    for (let r=c+1;r<k;r++){ const v = Math.abs(M[r*w+c]); if (v > best){ best = v; p = r; } }
+    if (best < 1e-11) return null;
+    if (p !== c) for (let j=0;j<w;j++){ const t = M[c*w+j]; M[c*w+j] = M[p*w+j]; M[p*w+j] = t; }
+    const piv = M[c*w+c];
+    for (let j=0;j<w;j++) M[c*w+j] /= piv;
+    for (let r=0;r<k;r++){
+      if (r === c) continue;
+      const f = M[r*w+c]; if (f === 0) continue;
+      for (let j=0;j<w;j++) M[r*w+j] -= f*M[c*w+j];
+    }
+  }
+  const inv = new Float64Array(k*k);
+  for (let i=0;i<k;i++) for (let j=0;j<k;j++) inv[i*k+j] = M[i*w+k+j];
+  return inv;
+}
+function fit(spec, ds){
+  const ids = termIds(spec);
+  const ck = ds + '|' + ids.join(',');
+  if (cache.has(ck)) return cache.get(ck);
+  const data = D[ds], n = data.n, y = data.price;
+  const g = ids.map(t => {
+    if (t.includes(':')){ const [c, l] = t.split(':'); return {key:t, codes:data[c], level:+l}; }
+    const col = colFor(t, ds); return {key:col, a:data[col]};
+  });
+  const k = g.length + 1;
+  const XtX = new Float64Array(k*k), Xty = new Float64Array(k), sum = new Float64Array(k), row = new Float64Array(k);
+  const idx = new Int32Array(n); let m = 0;
+  const fill = i => {
+    row[0] = 1;
+    for (let j=0;j<g.length;j++){
+      const t = g[j];
+      if (t.a){ const v = t.a[i]; if (v === null) return false; row[j+1] = v; }
+      else row[j+1] = t.codes[i] === t.level ? 1 : 0;
+    }
+    return true;
+  };
+  for (let i=0;i<n;i++){
+    if (!fill(i)) continue;
+    idx[m++] = i;
+    const yi = y[i];
+    for (let a=0;a<k;a++){
+      const ra = row[a]; if (ra === 0) continue;
+      sum[a] += ra; Xty[a] += ra*yi;
+      for (let b=a;b<k;b++) XtX[a*k+b] += ra*row[b];
+    }
+  }
+  for (let a=0;a<k;a++) for (let b=0;b<a;b++) XtX[a*k+b] = XtX[b*k+a];
+  const res = {ds, keys:g.map(t => t.key), n:m, k, singular:false};
+  // Equilibrate before inverting so columns on very different scales stay well conditioned.
+  const s = new Float64Array(k);
+  for (let a=0;a<k;a++){ if (XtX[a*k+a] <= 0){ res.singular = true; break; } s[a] = 1/Math.sqrt(XtX[a*k+a]); }
+  let inv = null;
+  if (!res.singular && m > k){
+    const A = new Float64Array(k*k);
+    for (let a=0;a<k;a++) for (let b=0;b<k;b++) A[a*k+b] = XtX[a*k+b]*s[a]*s[b];
+    inv = invert(A, k);
+    if (inv) for (let a=0;a<k;a++) for (let b=0;b<k;b++) inv[a*k+b] *= s[a]*s[b];
+  }
+  if (!inv){ res.singular = true; cache.set(ck, res); return res; }
+  const beta = new Float64Array(k);
+  for (let a=0;a<k;a++){ let v = 0; for (let b=0;b<k;b++) v += inv[a*k+b]*Xty[b]; beta[a] = v; }
+  const ybar = Xty[0]/m;
+  let ssr = 0, sst = 0;
+  for (let q=0;q<m;q++){
+    const i = idx[q]; fill(i);
+    let yh = 0; for (let a=0;a<k;a++) yh += beta[a]*row[a];
+    const e = y[i] - yh, d = y[i] - ybar;
+    ssr += e*e; sst += d*d;
+  }
+  const s2 = ssr/(m-k);
+  res.beta = beta;
+  res.se = Array.from({length:k}, (_, a) => Math.sqrt(s2*inv[a*k+a]));
+  res.r2 = 1 - ssr/sst;
+  res.sdy = Math.sqrt(sst/(m-1));
+  res.means = Array.from(sum, v => v/m);
+  cache.set(ck, res);
+  return res;
+}
+
+// ---------- Sidebar ----------
+const varsEl = document.getElementById('vars');
+const spec = () => state.cols[state.sel];
+function sw(checked, label, onClick, disabled){
+  const b = document.createElement('button');
+  b.className = 'switch'; b.setAttribute('role','switch');
+  b.setAttribute('aria-checked', checked); b.setAttribute('aria-label', label);
+  if (disabled) b.disabled = true;
+  b.addEventListener('click', onClick);
+  return b;
+}
+function varRow(id, label, sub){
+  const r = document.createElement('div'); r.className = 'row';
+  const lab = document.createElement('label');
+  lab.innerHTML = `<span>${label}</span>` + (sub ? `<span class="sub">${sub}</span>` : '');
+  const s = sw(spec().terms.has(id), label, () => toggle(id));
+  lab.addEventListener('click', () => s.click());
+  r.append(lab, s);
+  return r;
+}
+function group(title, sub){
+  const g = document.createElement('div'); g.className = 'group';
+  const h = document.createElement('div'); h.className = 'ghead';
+  h.innerHTML = `<h3>${title}${sub ? ` <span class="gsub">${sub}</span>` : ''}</h3>`;
+  g.append(h);
+  return [g, h];
+}
+function renderSidebar(){
+  const sp = spec();
+  document.getElementById('editing').innerHTML =
+    `<span class="sw" style="background:var(${SERIES[sp.color]})"></span>Editing regression (${state.sel+1})`;
+  varsEl.innerHTML = '';
+  const [gn] = group('Numeric');
+  const depthSub = state.ds === 'cleaned' ? 'calculated_depth = 100 × z / ((x+y)/2)' : 'stored depth %';
+  for (const v of NUMS) gn.append(varRow(v.id, v.label, v.id === 'depth' ? depthSub : v.sub));
+  varsEl.append(gn);
+  const [gd] = group('Dimensions', 'off when depth is on');
+  for (const v of DIMS) gd.append(varRow(v.id, v.label, v.sub));
+  varsEl.append(gd);
+  for (const c of CAT_KEYS){
+    const [g, h] = group(CAT_LABEL[c], '0/1 dummies');
+    const levels = CATS[c], base = sp.base[c];
+    const nonBase = levels.map((_, l) => l).filter(l => l !== base);
+    const onCount = nonBase.filter(l => sp.terms.has(`${c}:${l}`)).length;
+    const all = sw(onCount === 0 ? 'false' : onCount === nonBase.length ? 'true' : 'mixed', `All ${CAT_LABEL[c]} dummies`, () => {
+      const turnOn = onCount < nonBase.length;
+      nonBase.forEach(l => turnOn ? sp.terms.add(`${c}:${l}`) : sp.terms.delete(`${c}:${l}`));
+      state.notice = ''; renderAll();
+    });
+    h.append(all);
+    const br = document.createElement('div'); br.className = 'row';
+    const sel = document.createElement('select'); sel.className = 'basesel';
+    sel.setAttribute('aria-label', `${CAT_LABEL[c]} base level`);
+    levels.forEach((lv, l) => sel.add(new Option(lv, l, false, l === base)));
+    sel.addEventListener('change', () => {
+      const nb = +sel.value;
+      if (sp.terms.has(`${c}:${nb}`)){ sp.terms.delete(`${c}:${nb}`); state.notice = `${CAT_LABEL[c]}: ${levels[nb]} is now the base level, so its dummy was switched off.`; }
+      else state.notice = '';
+      sp.base[c] = nb; renderAll();
+    });
+    br.innerHTML = `<label><span class="sub">Base (omitted) level · levels listed ${CAT_ORDER_NOTE[c]}</span></label>`;
+    br.append(sel);
+    g.append(br);
+    levels.forEach((lv, l) => {
+      if (l === base){
+        const r = document.createElement('div'); r.className = 'row base';
+        r.innerHTML = `<label><span>${lv}</span></label><span class="tag">base</span>`;
+        g.append(r);
+      } else g.append(varRow(`${c}:${l}`, lv));
+    });
+    varsEl.append(g);
+  }
+  document.getElementById('notice').textContent = state.notice;
+}
+function toggle(id){
+  const sp = spec();
+  state.notice = '';
+  if (sp.terms.has(id)){ sp.terms.delete(id); renderAll(); return; }
+  sp.terms.add(id);
+  // Your rule: depth and x/y/z never share a regression.
+  if (id === 'depth'){
+    const off = DIM_IDS.filter(d => sp.terms.has(d));
+    if (off.length){ off.forEach(d => sp.terms.delete(d)); state.notice = `Switched off ${off.join(', ')}: depth and x/y/z are not used in the same regression.`; }
+  } else if (DIM_IDS.includes(id) && sp.terms.has('depth')){
+    sp.terms.delete('depth'); state.notice = 'Switched off depth: depth and x/y/z are not used in the same regression.';
+  }
+  renderAll();
+}
+
+// ---------- Plot ----------
+const panelsEl = document.getElementById('panels');
+const AXES = ds => [
+  {id:'price', label:'Price (USD)'},
+  {id:'carat', label:'Carat'}, {id:'table', label:'Table (%)'},
+  {id:'depth', label: ds === 'cleaned' ? 'Depth, calculated (%)' : 'Depth, stored (%)'},
+  {id:'x', label:'x (mm)'}, {id:'y', label:'y (mm)'}, {id:'z', label:'z (mm)'},
+];
+const axisLabel = id => AXES(state.ds).find(o => o.id === id).label;
+// Regression lines predict price, so they are drawn only when price is on the vertical axis.
+const showLines = () => state.yaxis === 'price' && state.xaxis !== 'price';
+function renderAxisSelects(){
+  for (const [elId, key] of [['xaxis', 'xaxis'], ['yaxis', 'yaxis']]){
+    const s = document.getElementById(elId); s.innerHTML = '';
+    for (const o of AXES(state.ds)) s.add(new Option(o.label, o.id, false, o.id === state[key]));
+  }
+}
+function niceTicks(lo, hi, count){
+  const raw = (hi - lo)/count, mag = Math.pow(10, Math.floor(Math.log10(raw))), r = raw/mag;
+  const step = (r >= 5 ? 10 : r >= 2 ? 5 : r >= 1 ? 2 : 1)*mag;
+  const ticks = []; for (let v = Math.ceil(lo/step)*step; v <= hi + step*1e-9; v += step) ticks.push(+v.toFixed(10));
+  return {ticks, step};
+}
+const extentCache = new Map();
+function extent(ds, xcol, ycol){
+  const key = ds + '|' + xcol + '|' + ycol; if (extentCache.has(key)) return extentCache.get(key);
+  const a = D[ds][xcol], b = D[ds][ycol];
+  let xlo = Infinity, xhi = -Infinity, ylo = Infinity, yhi = -Infinity, n = 0;
+  for (let i=0;i<a.length;i++){
+    const u = a[i], v = b[i]; if (u === null || v === null) continue;
+    n++;
+    if (u < xlo) xlo = u; if (u > xhi) xhi = u; if (v < ylo) ylo = v; if (v > yhi) yhi = v;
+  }
+  const e = {xlo, xhi, ylo, yhi, n}; extentCache.set(key, e); return e;
+}
+const M = {l:76, r:34, t:24, b:38};
+const bitmapCache = new Map();
+function geometry(w, h, ds, xcol, ycol){
+  const e = extent(ds, xcol, ycol);
+  const xpad = (e.xhi - e.xlo)*0.02 || 1, ypad = (e.yhi - e.ylo)*0.03 || 1;
+  const x0 = e.xlo - xpad, x1 = e.xhi + xpad;
+  let y0, y1;
+  const yCount = Math.max(3, Math.round(h/60));
+  if (ycol === 'price'){
+    // Price keeps a $0 baseline, topped at the next tick.
+    const t = niceTicks(0, e.yhi, yCount); y0 = 0;
+    const last = t.ticks[t.ticks.length-1]; y1 = last < e.yhi ? last + t.step : last;
+  } else { y0 = e.ylo - ypad; y1 = e.yhi + ypad; }
+  const xt = niceTicks(x0, x1, Math.max(3, Math.round(w/90))).ticks.filter(v => v >= x0 && v <= x1);
+  const yt = niceTicks(y0, y1, yCount).ticks.filter(v => v >= y0 && v <= y1);
+  const pw = w - M.l - M.r, ph = h - M.t - M.b;
+  const sx = v => M.l + (v - x0)/(x1 - x0)*pw;
+  const sy = v => h - M.b - (v - y0)/(y1 - y0)*ph;
+  return {x0, x1, y0, y1, xt, yt, sx, sy, n:e.n,
+    inv:px => x0 + (px - M.l)/pw*(x1 - x0), invY:py => y0 + (h - M.b - py)/ph*(y1 - y0)};
+}
+function pointsBitmap(w, h, dpr, ds, xcol, ycol, G){
+  const key = [w,h,dpr,ds,xcol,ycol,css('--point')].join('|');
+  if (bitmapCache.has(key)) return bitmapCache.get(key);
+  const c = document.createElement('canvas'); c.width = w*dpr; c.height = h*dpr;
+  const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+  ctx.fillStyle = css('--point');
+  const a = D[ds][xcol], b = D[ds][ycol];
+  for (let i=0;i<a.length;i++){ const u = a[i], v = b[i]; if (u === null || v === null) continue; ctx.fillRect(G.sx(u) - 1, G.sy(v) - 1, 2.2, 2.2); }
+  if (bitmapCache.size > 24) bitmapCache.clear();
+  bitmapCache.set(key, c); return c;
+}
+const tickText = (col, v) => col === 'price' ? '$' + fmtInt(v) : String(+v.toFixed(4));
+const valText = (col, v) => col === 'price' ? '$' + fmt(v) : fmt(v);
+// Line = predicted price as the axis variable moves, other regressors held at their sample means.
+function lineFn(res, col){
+  if (res.singular) return null;
+  let c = res.beta[0], slope = 0;
+  res.keys.forEach((k, j) => { if (k === col) slope = res.beta[j+1]; else c += res.beta[j+1]*res.means[j+1]; });
+  return {at: v => c + slope*v, c, slope, inModel: res.keys.includes(col)};
+}
+function drawPanel(panel, items){
+  const {base, ov} = panel;
+  const w = panel.el.clientWidth, h = Math.max(240, Math.min(420, Math.round(w*0.52)));
+  const dpr = window.devicePixelRatio || 1;
+  for (const c of [base, ov]){ c.width = w*dpr; c.height = h*dpr; c.style.height = h + 'px'; }
+  const xcol = colFor(state.xaxis, state.ds), ycol = colFor(state.yaxis, state.ds);
+  const G = geometry(w, h, state.ds, xcol, ycol);
+  panel.G = G; panel.items = items; panel.h = h; panel.w = w;
+  const ctx = base.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle = css('--surface'); ctx.fillRect(0, 0, w, h);
+  ctx.font = '11px system-ui,-apple-system,"Segoe UI",sans-serif';
+  ctx.strokeStyle = css('--grid'); ctx.lineWidth = 1; ctx.fillStyle = css('--muted');
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const v of G.yt){ const y = Math.round(G.sy(v)) + .5; ctx.beginPath(); ctx.moveTo(M.l, y); ctx.lineTo(w - M.r, y); ctx.stroke(); ctx.fillText(tickText(ycol, v), M.l - 6, y); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (const v of G.xt) ctx.fillText(tickText(xcol, v), G.sx(v), h - M.b + 6);
+  ctx.strokeStyle = css('--axis'); ctx.beginPath(); ctx.moveTo(M.l, h - M.b + .5); ctx.lineTo(w - M.r, h - M.b + .5); ctx.stroke();
+  ctx.fillStyle = css('--ink2'); ctx.fillText(axisLabel(state.xaxis), M.l + (w - M.l - M.r)/2, h - 16);
+  ctx.save(); ctx.translate(12, M.t + (h - M.t - M.b)/2); ctx.rotate(-Math.PI/2); ctx.textBaseline = 'middle';
+  ctx.fillText(axisLabel(state.yaxis), 0, 0); ctx.restore();
+  ctx.drawImage(pointsBitmap(w, h, dpr, state.ds, xcol, ycol, G), 0, 0, w, h);
+  if (showLines()){
+    ctx.save(); ctx.beginPath(); ctx.rect(M.l, M.t, w - M.l - M.r, h - M.t - M.b); ctx.clip();
+    const ends = [];
+    for (const it of items){
+      const L = lineFn(it.res, xcol); if (!L) continue;
+      const color = css(SERIES[it.spec.color]);
+      ctx.strokeStyle = css('--surface'); ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(G.sx(G.x0), G.sy(L.at(G.x0))); ctx.lineTo(G.sx(G.x1), G.sy(L.at(G.x1))); ctx.stroke();
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(L.inModel ? [] : [5, 4]);
+      ctx.beginPath(); ctx.moveTo(G.sx(G.x0), G.sy(L.at(G.x0))); ctx.lineTo(G.sx(G.x1), G.sy(L.at(G.x1))); ctx.stroke();
+      ctx.setLineDash([]);
+      // Label sits where the line leaves the plot (top edge or right edge).
+      let xe = G.x1;
+      if (L.slope > 0 && L.at(xe) > G.y1) xe = (G.y1 - L.c)/L.slope;
+      else if (L.slope < 0 && L.at(xe) < G.y0) xe = (G.y0 - L.c)/L.slope;
+      ends.push({n:it.n, x:G.sx(xe), y:Math.max(M.t + 6, Math.min(h - M.b - 6, G.sy(L.at(xe))))});
+    }
+    ctx.restore();
+    if (items.length > 1){
+      ends.sort((a, b) => a.x - b.x || a.y - b.y);
+      for (let i=1;i<ends.length;i++){
+        const p = ends[i-1], e = ends[i];
+        if (Math.abs(e.x - p.x) < 24 && Math.abs(e.y - p.y) < 12) e.y = p.y + 12;
+      }
+      ctx.fillStyle = css('--ink2'); ctx.textBaseline = 'middle';
+      for (const e of ends){
+        const atRight = e.x > w - M.r - 2;
+        ctx.textAlign = atRight ? 'left' : 'center';
+        ctx.fillText(`(${e.n})`, atRight ? w - M.r + 4 : e.x, atRight ? e.y : (e.y <= M.t + 6 ? M.t - 10 : e.y - 10));
+      }
+    }
+  }
+  ov.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+}
+function makePanel(title, color){
+  const el = document.createElement('div'); el.className = 'panel';
+  if (title) el.innerHTML = `<h4><span class="sw" style="background:var(${color})"></span>${title}</h4>`;
+  const wrap = document.createElement('div'); wrap.style.position = 'relative';
+  const base = document.createElement('canvas'), ov = document.createElement('canvas'); ov.className = 'ov';
+  base.setAttribute('role', 'img');
+  const tip = document.createElement('div'); tip.className = 'tip';
+  wrap.append(base, ov, tip); el.append(wrap);
+  const panel = {el, base, ov, tip};
+  ov.addEventListener('mousemove', e => hover(panel, e));
+  ov.addEventListener('mouseleave', () => { ov.getContext('2d').clearRect(0, 0, panel.w, panel.h); tip.style.display = 'none'; });
+  return panel;
+}
+function hover(panel, e){
+  const {G, ov, tip, w, h} = panel; if (!G) return;
+  const r = ov.getBoundingClientRect(), px = e.clientX - r.left, py0 = e.clientY - r.top;
+  const ctx = ov.getContext('2d'); ctx.clearRect(0, 0, w, h);
+  if (px < M.l || px > w - M.r || py0 < M.t || py0 > h - M.b){ tip.style.display = 'none'; return; }
+  const xv = G.inv(px), xcol = colFor(state.xaxis, state.ds), ycol = colFor(state.yaxis, state.ds);
+  ctx.strokeStyle = css('--axis'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(Math.round(px) + .5, M.t); ctx.lineTo(Math.round(px) + .5, h - M.b); ctx.stroke();
+  let html = `<div><b>${axisLabel(state.xaxis)} = ${valText(xcol, xv)}</b></div>`;
+  if (showLines()){
+    for (const it of panel.items){
+      const L = lineFn(it.res, xcol); if (!L) continue;
+      const yv = L.at(xv), py = G.sy(yv);
+      if (py >= M.t && py <= h - M.b){
+        ctx.fillStyle = css(SERIES[it.spec.color]); ctx.strokeStyle = css('--surface'); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px, py, 4.5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      }
+      html += `<div><span class="sw" style="background:var(${SERIES[it.spec.color]})"></span>(${it.n}) predicted $${fmt(yv)}</div>`;
+    }
+  } else {
+    ctx.beginPath(); ctx.moveTo(M.l, Math.round(py0) + .5); ctx.lineTo(w - M.r, Math.round(py0) + .5); ctx.stroke();
+    html += `<div><b>${axisLabel(state.yaxis)} = ${valText(ycol, G.invY(py0))}</b></div>`;
+  }
+  tip.innerHTML = html; tip.style.display = 'block';
+  const tw = tip.offsetWidth;
+  tip.style.left = (px + 14 + tw > w ? px - 14 - tw : px + 14) + 'px';
+  tip.style.top = Math.max(0, py0 - 20) + 'px';
+}
+let panels = [];
+function renderPlots(){
+  const items = state.cols.map((sp, i) => ({spec:sp, n:i+1, res:fit(sp, state.ds)}));
+  const xl = axisLabel(state.xaxis), yl = axisLabel(state.yaxis), lines = showLines();
+  const xcol = colFor(state.xaxis, state.ds), ycol = colFor(state.yaxis, state.ds);
+  document.getElementById('plotTitle').textContent = `${yl} vs ${xl} · ${DS_LABEL[state.ds]} data`;
+  const legend = document.getElementById('legend'); legend.innerHTML = '';
+  if (lines && state.mode === 'overlay' && items.length > 1)
+    for (const it of items) legend.insertAdjacentHTML('beforeend', `<span><i style="background:var(${SERIES[it.spec.color]})"></i>(${it.n})</span>`);
+  panelsEl.innerHTML = ''; panels = [];
+  // Separate plots only differ by their regression line, so without lines one plot is enough.
+  const separate = lines && state.mode === 'separate';
+  panelsEl.classList.toggle('multi', separate && items.length > 1);
+  if (!separate){
+    const p = makePanel(null); panelsEl.append(p.el); panels.push([p, items]);
+  } else {
+    for (const it of items){ const p = makePanel(`Regression (${it.n})`, SERIES[it.spec.color]); panelsEl.append(p.el); panels.push([p, [it]]); }
+  }
+  for (const [p, its] of panels){
+    drawPanel(p, its);
+    p.base.setAttribute('aria-label', `Scatterplot of ${yl} against ${xl}` + (lines ? ` with ${its.length} regression line(s).` : '.'));
+  }
+  const nPlot = extent(state.ds, xcol, ycol).n;
+  let cap = `Each dot is one diamond (${fmtInt(nPlot)} plotted; rows missing either axis variable are left out).`;
+  if (lines){
+    const notIn = items.filter(it => !it.res.singular && !it.res.keys.includes(xcol)).map(it => `(${it.n})`);
+    cap += ` Each line is a regression's predicted price as ${xl} changes, with its other variables held at their sample means.` +
+      (notIn.length ? ` Dashed: ${xl} is not in regression ${notIn.join(', ')}, so its line is flat at the mean prediction.` : '');
+  } else {
+    cap += ' Regression lines appear only when Price is on the vertical axis and not on the horizontal axis, because every regression in the table predicts price.';
+  }
+  document.getElementById('caption').textContent = cap;
+}
+
+// ---------- Table ----------
+function renderTable(){
+  const ds = state.ds, results = state.cols.map(sp => fit(sp, ds));
+  const keys = canonicalKeys(ds).filter(k => results.some(r => r.keys.includes(k)));
+  const t = document.getElementById('regTable');
+  const cell = (i, txt) => `<td class="${i === state.sel ? 'sel' : ''}">${txt}</td>`;
+  let h = '<thead><tr class="num"><th></th>';
+  state.cols.forEach((sp, i) => {
+    h += `<th class="${i === state.sel ? 'sel' : ''}"><button class="colbtn" data-sel="${i}" aria-label="Edit regression ${i+1}"><span class="sw" style="background:var(${SERIES[sp.color]})"></span>(${i+1})</button>` +
+      (state.cols.length > 1 ? `<button class="colx" data-del="${i}" aria-label="Remove regression ${i+1}">×</button>` : '') + '</th>';
+  });
+  h += '</tr><tr class="dv"><th></th>' + state.cols.map((_, i) => `<th class="${i === state.sel ? 'sel' : ''}">Price</th>`).join('') + '</tr></thead><tbody class="coef">';
+  const coefRows = [['Constant', 0], ...keys.map(k => [rowLabel(k), k])];
+  for (const [label, k] of coefRows){
+    let a = `<tr><td>${label}</td>`, b = '<tr class="se"><td></td>', t = '<tr class="ts"><td></td>';
+    results.forEach((r, i) => {
+      const j = k === 0 ? 0 : r.keys.indexOf(k) + 1;
+      if (r.singular || (k !== 0 && j === 0)){ a += cell(i, ''); b += cell(i, ''); t += cell(i, ''); }
+      else { a += cell(i, fmt(r.beta[j])); b += cell(i, fmt(r.se[j])); t += cell(i, fmt(r.beta[j]/r.se[j])); }
+    });
+    h += a + '</tr>' + b + '</tr>' + t + '</tr>';
+  }
+  h += '</tbody><tbody class="stats">';
+  const stat = (label, f) => { h += `<tr><td>${label}</td>` + results.map((r, i) => cell(i, f(r))).join('') + '</tr>'; };
+  stat('Observations', r => fmtInt(r.n));
+  stat('R-squared', r => r.singular ? '' : fmt(r.r2));
+  stat('Std Dev of Dep Var', r => r.singular ? '' : fmt(r.sdy));
+  stat('Sample', () => DS_LABEL[ds]);
+  h += '</tbody>';
+  t.innerHTML = h;
+  t.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => { state.sel = +b.dataset.sel; state.notice = ''; renderAll(); }));
+  t.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', () => {
+    const i = +b.dataset.del; state.cols.splice(i, 1);
+    if (state.sel >= state.cols.length) state.sel = state.cols.length - 1; else if (state.sel > i) state.sel--;
+    state.notice = ''; renderAll();
+  }));
+  document.getElementById('addBtn').disabled = state.cols.length >= MAXCOLS;
+
+  // Note: base levels, listed per column only when they differ.
+  const usedCats = CAT_KEYS.filter(c => state.cols.some(sp => [...sp.terms].some(t => t.startsWith(c + ':'))));
+  let baseTxt = '';
+  if (usedCats.length){
+    const parts = usedCats.map(c => {
+      const bases = [...new Set(state.cols.map(sp => sp.base[c]))];
+      return bases.length === 1 ? `${CAT_LABEL[c]} = ${CATS[c][bases[0]]}`
+        : `${CAT_LABEL[c]} = ` + state.cols.map((sp, i) => `${CATS[c][sp.base[c]]} in (${i+1})`).join(', ');
+    });
+    baseTxt = ` Categorical variables enter as 0/1 dummy variables; the omitted base levels are ${parts.join('; ')}.`;
+  }
+  const depthTxt = keys.includes('calculated_depth') ? ' Depth (calculated) = 100 × z / ((x + y) / 2).' : '';
+  document.getElementById('tnote').textContent =
+    `Notes: Standard errors are below coefficients, and t-statistics (in italics) are below standard errors. The dependent variable is price in USD. Estimated by OLS with standard (non-robust) standard errors.${baseTxt}${depthTxt} A row is excluded from a regression only if one of that regression's variables is missing for it. All values are rounded to the hundredths.`;
+
+  const flags = [];
+  results.forEach((r, i) => { if (r.singular) flags.push(`(${i+1}): the regressors are perfectly collinear or a dummy has no observations, so it cannot be estimated.`); });
+  if (ds === 'cleaned'){
+    results.forEach((r, i) => { if (!r.singular && r.n < D.cleaned.n) flags.push(`(${i+1}): ${fmtInt(D.cleaned.n - r.n)} rows excluded for missing values in the included variables.`); });
+  } else if (results.some(r => r.keys.some(k => DIM_IDS.includes(k)))){
+    flags.push('Original data: x, y and z contain zeros (x 8 rows, y 7, z 20). They are used as recorded.');
+  }
+  document.getElementById('flags').innerHTML = flags.map(f => `<li>${f}</li>`).join('');
+}
+function copyTable(){
+  const rows = [...document.querySelectorAll('#regTable tr')].map(tr =>
+    [...tr.children].map(td => td.textContent.replace('×', '').trim()).join('\t'));
+  rows.push('', document.getElementById('tnote').textContent);
+  navigator.clipboard.writeText(rows.join('\n')).then(() => {
+    const b = document.getElementById('copyBtn'); b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy table', 1200);
+  });
+}
+
+// ---------- Wiring ----------
+function renderSegs(){
+  document.querySelectorAll('#dsSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.ds === state.ds));
+  document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === state.mode));
+}
+function renderAll(){ renderSegs(); renderSidebar(); renderTable(); renderPlots(); }
+document.querySelectorAll('#dsSeg button').forEach(b => b.addEventListener('click', () => { state.ds = b.dataset.ds; state.notice = ''; renderAxisSelects(); renderAll(); }));
+document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; renderSegs(); renderPlots(); }));
+document.getElementById('xaxis').addEventListener('change', e => { state.xaxis = e.target.value; renderPlots(); });
+document.getElementById('yaxis').addEventListener('change', e => { state.yaxis = e.target.value; renderPlots(); });
+document.getElementById('swapBtn').addEventListener('click', () => { [state.xaxis, state.yaxis] = [state.yaxis, state.xaxis]; renderAxisSelects(); renderPlots(); });
+document.getElementById('addBtn').addEventListener('click', () => {
+  if (state.cols.length >= MAXCOLS) return;
+  const used = new Set(state.cols.map(c => c.color));
+  while (used.has(nextColor)) nextColor = (nextColor + 1) % SERIES.length;
+  state.cols.push(newSpec(spec())); state.sel = state.cols.length - 1; state.notice = ''; renderAll();
+});
+document.getElementById('copyBtn').addEventListener('click', copyTable);
+let rt; new ResizeObserver(() => { clearTimeout(rt); rt = setTimeout(() => panels.forEach(([p, its]) => drawPanel(p, its)), 80); }).observe(panelsEl);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderPlots);
+renderAxisSelects(); renderAll();
+</script>
+</body>
+</html>
